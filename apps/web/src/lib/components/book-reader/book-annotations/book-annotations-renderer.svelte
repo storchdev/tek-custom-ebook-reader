@@ -74,6 +74,19 @@
   let editingPopoverWidth = 0;
   let editingPopoverHeight = 0;
   let isEditingPopoverManuallySized = false;
+  const resizeDirections = ['n', 'e', 's', 'w', 'ne', 'se', 'sw', 'nw'] as const;
+  type ResizeDirection = (typeof resizeDirections)[number];
+  const resizeLabels: Record<ResizeDirection, string> = {
+    n: 'top',
+    e: 'right',
+    s: 'bottom',
+    w: 'left',
+    ne: 'top right',
+    se: 'bottom right',
+    sw: 'bottom left',
+    nw: 'top left'
+  };
+  let finishPopoverResize: (() => void) | undefined;
   let isAnnotationPopoverDragging = false;
   let isEditing = false;
   let commentEl: HTMLElement | undefined;
@@ -214,6 +227,7 @@
     window.clearTimeout(hoverOpenTimer);
     window.clearTimeout(closeTimer);
     detachSpanListeners();
+    finishPopoverResize?.();
     document.removeEventListener('pointerdown', closePinnedPopover, true);
     if (popoverViewportResizeFrame !== undefined) {
       window.cancelAnimationFrame(popoverViewportResizeFrame);
@@ -1016,9 +1030,37 @@
     return {
       minWidth: Math.min(360, maxWidth),
       maxWidth,
-      minHeight: Math.min(editingPopoverMinHeight, maxHeight),
+      minHeight: Math.min(getEditingPopoverMinHeight(), maxHeight),
       maxHeight
     };
+  }
+
+  function getEditingPopoverMinHeight() {
+    const header = popoverEl?.querySelector<HTMLElement>('.book-annotation-card-header');
+    const editor = popoverEl?.querySelector<HTMLElement>('.book-annotation-card-editor');
+    const actions = popoverEl?.querySelector<HTMLElement>('.book-annotation-card-editor-actions');
+    if (!popoverEl || !header || !editor || !actions || !draftTextAreaEl) {
+      return editingPopoverMinHeight;
+    }
+
+    const cardStyle = window.getComputedStyle(popoverEl);
+    const editorStyle = window.getComputedStyle(editor);
+    const actionsStyle = window.getComputedStyle(actions);
+    const textareaStyle = window.getComputedStyle(draftTextAreaEl);
+    const pixels = (value: string) => Number.parseFloat(value) || 0;
+    // Measure the controls at the current font size instead of assuming fixed chrome height.
+    const contentMinHeight =
+      header.getBoundingClientRect().height +
+      pixels(editorStyle.paddingTop) +
+      pixels(editorStyle.paddingBottom) +
+      pixels(textareaStyle.minHeight) +
+      actions.getBoundingClientRect().height +
+      pixels(actionsStyle.marginTop) +
+      pixels(actionsStyle.marginBottom) +
+      pixels(cardStyle.borderTopWidth) +
+      pixels(cardStyle.borderBottomWidth);
+
+    return Math.max(editingPopoverMinHeight, Math.ceil(contentMinHeight));
   }
 
   async function fitDraftTextAreaToComment() {
@@ -1133,49 +1175,107 @@
     );
   }
 
-  function beginEditingPopoverResize(event: PointerEvent) {
-    if (!popoverEl || !isEditing) {
+  function applyEditingPopoverResize(
+    rect: DOMRect,
+    direction: ResizeDirection,
+    deltaX: number,
+    deltaY: number
+  ) {
+    const viewport = window.visualViewport;
+    const viewportLeft = (viewport?.offsetLeft || 0) + 12;
+    const viewportTop = (viewport?.offsetTop || 0) + 12;
+    const viewportRight = (viewport?.offsetLeft || 0) + (viewport?.width || window.innerWidth) - 12;
+    const viewportBottom =
+      (viewport?.offsetTop || 0) + (viewport?.height || window.innerHeight) - 12;
+    const { minWidth, maxWidth, minHeight, maxHeight } = getEditingPopoverSizeBounds();
+    let { left, right, top, bottom } = rect;
+
+    if (direction.includes('w')) {
+      left = limitToRange(
+        Math.max(viewportLeft, right - maxWidth),
+        right - minWidth,
+        left + deltaX
+      );
+    } else if (direction.includes('e')) {
+      right = limitToRange(
+        left + minWidth,
+        Math.min(viewportRight, left + maxWidth),
+        right + deltaX
+      );
+    }
+    if (direction.includes('n')) {
+      top = limitToRange(
+        Math.max(viewportTop, bottom - maxHeight),
+        bottom - minHeight,
+        top + deltaY
+      );
+    } else if (direction.includes('s')) {
+      bottom = limitToRange(
+        top + minHeight,
+        Math.min(viewportBottom, top + maxHeight),
+        bottom + deltaY
+      );
+    }
+
+    manualPopoverLeft = left;
+    manualPopoverTop = top;
+    editingPopoverWidth = right - left;
+    editingPopoverHeight = bottom - top;
+    isEditingPopoverManuallySized = true;
+    void updatePopoverPosition({ preserveTop: true });
+  }
+
+  function beginEditingPopoverResize(event: PointerEvent, direction: ResizeDirection) {
+    if (!popoverEl || !isEditing || event.button !== 0) {
       return;
     }
 
     event.preventDefault();
     event.stopPropagation();
+    finishPopoverResize?.();
+    window.clearTimeout(closeTimer);
 
     const startRect = popoverEl.getBoundingClientRect();
     const startX = event.clientX;
     const startY = event.clientY;
-    manualPopoverLeft = startRect.left;
-    manualPopoverTop = startRect.top;
-    editingPopoverWidth = startRect.width;
-    editingPopoverHeight = startRect.height;
-    isEditingPopoverManuallySized = true;
+    const pointerId = event.pointerId;
+    const handle = event.currentTarget as HTMLElement;
+    handle.setPointerCapture(pointerId);
 
     const handlePointerMove = (moveEvent: PointerEvent) => {
+      if (moveEvent.pointerId !== pointerId) return;
+      if (!popoverEl || !isEditing) {
+        finishPopoverResize?.();
+        return;
+      }
       moveEvent.preventDefault();
-      const { minWidth, maxWidth, minHeight, maxHeight } = getEditingPopoverSizeBounds();
-      editingPopoverWidth = limitToRange(
-        minWidth,
-        maxWidth,
-        startRect.width + moveEvent.clientX - startX
+      applyEditingPopoverResize(
+        startRect,
+        direction,
+        moveEvent.clientX - startX,
+        moveEvent.clientY - startY
       );
-      editingPopoverHeight = limitToRange(
-        minHeight,
-        maxHeight,
-        startRect.height + moveEvent.clientY - startY
-      );
-      void updatePopoverPosition({ preserveTop: true });
     };
-
-    const handlePointerUp = () => {
+    const handlePointerEnd = (endEvent: PointerEvent) => {
+      if (endEvent.pointerId === pointerId) finishPopoverResize?.();
+    };
+    finishPopoverResize = () => {
       window.removeEventListener('pointermove', handlePointerMove);
-      window.removeEventListener('pointerup', handlePointerUp);
+      window.removeEventListener('pointerup', handlePointerEnd);
+      window.removeEventListener('pointercancel', handlePointerEnd);
+      handle.removeEventListener('lostpointercapture', handlePointerEnd);
+      finishPopoverResize = undefined;
+      if (handle.hasPointerCapture(pointerId)) handle.releasePointerCapture(pointerId);
     };
 
-    window.addEventListener('pointermove', handlePointerMove);
-    window.addEventListener('pointerup', handlePointerUp, { once: true });
+    window.addEventListener('pointermove', handlePointerMove, { passive: false });
+    window.addEventListener('pointerup', handlePointerEnd);
+    window.addEventListener('pointercancel', handlePointerEnd);
+    handle.addEventListener('lostpointercapture', handlePointerEnd);
   }
 
-  function handleEditingPopoverResizeKeydown(event: KeyboardEvent) {
+  function handleEditingPopoverResizeKeydown(event: KeyboardEvent, direction: ResizeDirection) {
+    if (!popoverEl || !isEditing) return;
     const step = event.shiftKey ? 32 : 16;
     const deltas: Record<string, [number, number]> = {
       ArrowDown: [0, step],
@@ -1184,36 +1284,10 @@
       ArrowUp: [0, -step]
     };
     const delta = deltas[event.key];
-
-    if (!delta) {
-      return;
-    }
+    if (!delta) return;
 
     event.preventDefault();
-    resizeEditingPopoverBy(delta[0], delta[1]);
-  }
-
-  function resizeEditingPopoverBy(deltaWidth: number, deltaHeight: number) {
-    if (!popoverEl || !isEditing) {
-      return;
-    }
-
-    const rect = popoverEl.getBoundingClientRect();
-    const { minWidth, maxWidth, minHeight, maxHeight } = getEditingPopoverSizeBounds();
-    manualPopoverLeft = rect.left;
-    manualPopoverTop = rect.top;
-    editingPopoverWidth = limitToRange(
-      minWidth,
-      maxWidth,
-      (editingPopoverWidth || rect.width) + deltaWidth
-    );
-    editingPopoverHeight = limitToRange(
-      minHeight,
-      maxHeight,
-      (editingPopoverHeight || rect.height) + deltaHeight
-    );
-    isEditingPopoverManuallySized = true;
-    void updatePopoverPosition({ preserveTop: true });
+    applyEditingPopoverResize(popoverEl.getBoundingClientRect(), direction, delta[0], delta[1]);
   }
 
   function isEditableEventTarget(target: EventTarget | null) {
@@ -1278,6 +1352,20 @@
     on:touchmove|stopPropagation={() => {}}
     on:wheel|stopPropagation={() => {}}
   >
+    {#if isEditing}
+      {#each resizeDirections as direction}
+        <button
+          type="button"
+          class="book-annotation-card-resize-handle book-annotation-card-resize-handle--{direction}"
+          aria-label="Resize annotation popup from {resizeLabels[direction]} (arrow keys)"
+          tabindex={direction === 'se' ? 0 : -1}
+          on:pointerdown={(event) => beginEditingPopoverResize(event, direction)}
+          on:keydown|stopPropagation={(event) =>
+            handleEditingPopoverResizeKeydown(event, direction)}
+          on:click|stopPropagation={() => {}}
+        ></button>
+      {/each}
+    {/if}
     <div class="book-annotation-card-accent" aria-hidden="true"></div>
     <div
       class="book-annotation-card-header"
@@ -1368,13 +1456,6 @@
           <span class="book-annotation-card-editor-primary-actions">
             <button
               type="button"
-              class="book-annotation-card-editor-action book-annotation-card-editor-action--cancel"
-              on:click|stopPropagation={cancelActiveEdit}
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
               class="book-annotation-card-editor-action book-annotation-card-editor-action--primary"
               title="Save annotation"
               aria-label="Save annotation"
@@ -1383,18 +1464,6 @@
             >
               <span>Save</span>
               <AnnotationSaveReturnIcon />
-            </button>
-          </span>
-          <span class="book-annotation-card-editor-resize-actions">
-            <button
-              type="button"
-              class="book-annotation-card-editor-action book-annotation-card-editor-action--resize"
-              title="Resize edit popup"
-              aria-label="Resize edit popup"
-              on:pointerdown={beginEditingPopoverResize}
-              on:keydown|stopPropagation={handleEditingPopoverResizeKeydown}
-            >
-              <span class="book-annotation-card-editor-resize-grip" aria-hidden="true"></span>
             </button>
           </span>
         </div>
@@ -1920,7 +1989,7 @@
   }
 
   .book-annotation-card--manual-size .book-annotation-card-textarea {
-    flex: 1 1 auto;
+    flex: 1 1 0;
   }
 
   .book-annotation-card-textarea:focus {
@@ -1935,6 +2004,7 @@
 
   .book-annotation-card-editor-actions {
     display: flex;
+    flex: 0 0 auto;
     align-items: center;
     gap: 0.3rem;
     margin-top: 0.62rem;
@@ -1951,11 +2021,6 @@
     display: inline-flex;
     align-items: center;
     gap: 0.25rem;
-  }
-
-  .book-annotation-card-editor-resize-actions {
-    display: inline-flex;
-    align-items: center;
   }
 
   .book-annotation-card-editor-action {
@@ -1988,33 +2053,78 @@
     color: var(--reader-page-text);
   }
 
-  .book-annotation-card-editor-action--resize {
-    cursor: nwse-resize;
-    color: color-mix(in srgb, var(--reader-page-text) 58%, transparent);
+  .book-annotation-card-resize-handle {
+    position: absolute;
+    z-index: 3;
+    margin: 0;
+    border: 0;
+    background: transparent;
     padding: 0;
+    touch-action: none;
   }
 
-  .book-annotation-card-editor-action--resize:hover,
-  .book-annotation-card-editor-action--resize:focus-visible {
-    background: color-mix(in srgb, var(--reader-page-text) 10%, transparent);
-    color: var(--reader-page-text);
+  .book-annotation-card-resize-handle:focus-visible {
+    outline: 2px solid var(--app-accent);
+    outline-offset: -2px;
   }
 
-  .book-annotation-card-editor-resize-grip {
-    display: block;
-    width: calc(var(--reader-ui-control-font-size) + 0.22rem);
-    height: calc(var(--reader-ui-control-font-size) + 0.22rem);
-    opacity: 0.52;
-    background:
-      linear-gradient(135deg, transparent 0 52%, currentColor 52% 59%, transparent 59%),
-      linear-gradient(135deg, transparent 0 68%, currentColor 68% 75%, transparent 75%),
-      linear-gradient(135deg, transparent 0 84%, currentColor 84% 91%, transparent 91%);
+  .book-annotation-card-resize-handle--n,
+  .book-annotation-card-resize-handle--s {
+    right: 12px;
+    left: 12px;
+    height: 6px;
+    cursor: ns-resize;
   }
 
-  .book-annotation-card-editor-action--resize:hover .book-annotation-card-editor-resize-grip,
-  .book-annotation-card-editor-action--resize:focus-visible
-    .book-annotation-card-editor-resize-grip {
-    opacity: 0.78;
+  .book-annotation-card-resize-handle--n {
+    top: 0;
+  }
+  .book-annotation-card-resize-handle--s {
+    bottom: 0;
+  }
+
+  .book-annotation-card-resize-handle--e,
+  .book-annotation-card-resize-handle--w {
+    top: 12px;
+    bottom: 12px;
+    width: 6px;
+    cursor: ew-resize;
+  }
+
+  .book-annotation-card-resize-handle--e {
+    right: 0;
+  }
+  .book-annotation-card-resize-handle--w {
+    left: 0;
+  }
+
+  .book-annotation-card-resize-handle--ne,
+  .book-annotation-card-resize-handle--nw,
+  .book-annotation-card-resize-handle--se,
+  .book-annotation-card-resize-handle--sw {
+    width: 12px;
+    height: 12px;
+  }
+
+  .book-annotation-card-resize-handle--ne {
+    top: 0;
+    right: 0;
+    cursor: nesw-resize;
+  }
+  .book-annotation-card-resize-handle--nw {
+    top: 0;
+    left: 0;
+    cursor: nwse-resize;
+  }
+  .book-annotation-card-resize-handle--se {
+    bottom: 0;
+    right: 0;
+    cursor: nwse-resize;
+  }
+  .book-annotation-card-resize-handle--sw {
+    bottom: 0;
+    left: 0;
+    cursor: nesw-resize;
   }
 
   .book-annotation-card-editor-action--primary {
@@ -2027,12 +2137,6 @@
   .book-annotation-card-editor-action--primary:focus-visible {
     background: color-mix(in srgb, var(--app-accent) 88%, #000000);
     color: #ffffff;
-  }
-
-  .book-annotation-card-editor-action--cancel:hover,
-  .book-annotation-card-editor-action--cancel:focus-visible {
-    background: color-mix(in srgb, var(--reader-page-text) 9%, transparent);
-    color: var(--reader-page-text);
   }
 
   .book-annotation-card-editor-action--danger {
