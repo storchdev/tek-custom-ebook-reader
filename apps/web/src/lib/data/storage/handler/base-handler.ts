@@ -737,6 +737,10 @@ export abstract class BaseStorageHandler {
       : `${FilePrefix.SUBTITLE}${exporterVersion}_${currentDbVersion}_${data.lastSubtitleDataModified}_${data.subtitleData.subtitles.length}.json`;
   }
 
+  static countAnnotations(annotations: BooksDbAnnotation[]) {
+    return annotations.filter((annotation) => !annotation.deletedAt).length;
+  }
+
   protected static getLastAnnotationModified(annotations: BooksDbAnnotation[]) {
     return annotations.reduce(
       (lastModified, annotation) =>
@@ -751,7 +755,7 @@ export abstract class BaseStorageHandler {
   ) {
     const normalizedAnnotations = BaseStorageHandler.normalizeAnnotations(annotations);
 
-    return `${FilePrefix.ANNOTATIONS}${exporterVersion}_${currentDbVersion}_${lastAnnotationModified}_${normalizedAnnotations.length}.json`;
+    return `${FilePrefix.ANNOTATIONS}${exporterVersion}_${currentDbVersion}_${lastAnnotationModified}_${BaseStorageHandler.countAnnotations(normalizedAnnotations)}.json`;
   }
 
   protected static async getCoverFileName(cover: Blob) {
@@ -977,6 +981,12 @@ export abstract class BaseStorageHandler {
       createdAt,
       updatedAt
     };
+
+    const deletedAt = BaseStorageHandler.toFiniteNumber(annotation.deletedAt, 0);
+
+    if (deletedAt > 0) {
+      normalizedAnnotation.deletedAt = deletedAt;
+    }
 
     if (Object.prototype.hasOwnProperty.call(annotation, 'editedAt')) {
       normalizedAnnotation.editedAt = Math.max(

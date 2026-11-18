@@ -35,7 +35,7 @@ import { replicationProgress$ } from '$lib/functions/replication/replication-pro
 import { mergeStatistics, updateStatisticToStore } from '$lib/functions/statistic-util';
 import pLimit from 'p-limit';
 
-interface RequestOptions {
+export interface RequestOptions {
   method?: string;
   headers?: Record<string, string>;
   body?: XMLHttpRequestBodyInit | null | undefined;
@@ -540,7 +540,9 @@ export abstract class ApiStorageHandler extends BaseStorageHandler {
 
     await this.upload(titleId, filename, files, file, JSON.stringify(annotationsToStore));
 
-    this.addBookCard(this.currentContext.title, { annotationCount: annotationsToStore.length });
+    this.addBookCard(this.currentContext.title, {
+      annotationCount: BaseStorageHandler.countAnnotations(annotationsToStore)
+    });
   }
 
   async saveCover(data: Blob | undefined) {

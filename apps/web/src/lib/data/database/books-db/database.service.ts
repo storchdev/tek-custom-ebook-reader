@@ -124,12 +124,15 @@ export class DatabaseService {
     switchMap(() => this.db$),
     switchMap(async (db) => {
       const counts = new Map<number, number>();
-      let cursor = await db.transaction('annotation').store.index('dataId').openKeyCursor();
+      let cursor = await db.transaction('annotation').store.index('dataId').openCursor();
 
       while (cursor) {
         const dataId = cursor.key;
 
-        counts.set(dataId, (counts.get(dataId) || 0) + 1);
+        if (!cursor.value.deletedAt) {
+          counts.set(dataId, (counts.get(dataId) || 0) + 1);
+        }
+
         cursor = await cursor.continue();
       }
 
@@ -347,10 +350,14 @@ export class DatabaseService {
     return db.put('bookmark', bookmarkData);
   }
 
-  async getAnnotations(dataId: number) {
+  /**
+   * @param includeDeleted also return deletion markers (needed when syncing)
+   */
+  async getAnnotations(dataId: number, includeDeleted = false) {
     const db = await this.db;
+    const annotations = await db.getAllFromIndex('annotation', 'dataId', dataId);
 
-    return db.getAllFromIndex('annotation', 'dataId', dataId);
+    return includeDeleted ? annotations : annotations.filter((annotation) => !annotation.deletedAt);
   }
 
   async putAnnotation(annotation: BooksDbAnnotation) {
@@ -366,9 +373,16 @@ export class DatabaseService {
     const db = await this.db;
     const annotation = await db.get('annotation', annotationId);
 
-    await db.delete('annotation', annotationId);
-
     if (annotation) {
+      const now = Date.now();
+
+      // keep a marker so the deletion wins over the old copy on other devices when merging
+      await db.put('annotation', {
+        ...annotation,
+        comment: '',
+        deletedAt: now,
+        updatedAt: Math.max(now, (annotation.updatedAt || 0) + 1)
+      });
       this.annotationsChanged$.next(annotation.dataId);
     }
   }

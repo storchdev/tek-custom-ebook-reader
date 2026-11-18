@@ -1254,6 +1254,7 @@
         [context],
         [
           StorageDataType.PROGRESS,
+          StorageDataType.ANNOTATIONS,
           StorageDataType.STATISTICS,
           StorageDataType.READING_GOALS,
           StorageDataType.AUDIOBOOK,
@@ -1455,6 +1456,7 @@
     };
 
     await database.putAnnotation(annotation);
+    scheduleReplication(StorageDataType.ANNOTATIONS);
 
     annotations = [...annotations, annotation];
     activeAnnotationId = annotation.id;
@@ -1473,6 +1475,7 @@
 
   async function deleteAnnotation(annotation: BooksDbAnnotation) {
     await database.deleteAnnotation(annotation.id);
+    scheduleReplication(StorageDataType.ANNOTATIONS);
 
     annotations = annotations.filter((item) => item.id !== annotation.id);
 
@@ -1508,6 +1511,7 @@
     };
 
     await database.putAnnotation(updatedAnnotation);
+    scheduleReplication(StorageDataType.ANNOTATIONS);
 
     annotations = annotations.map((annotation) =>
       annotation.id === updatedAnnotation.id ? updatedAnnotation : annotation

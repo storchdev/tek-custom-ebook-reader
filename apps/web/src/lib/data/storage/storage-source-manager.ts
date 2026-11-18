@@ -9,7 +9,12 @@ import {
   StorageSourceDefault,
   internalStorageSourceName
 } from '$lib/data/storage/storage-types';
-import { fsStorageSource$, gDriveStorageSource$, oneDriveStorageSource$ } from '$lib/data/store';
+import {
+  fsStorageSource$,
+  gDriveStorageSource$,
+  oneDriveStorageSource$,
+  webDavStorageSource$
+} from '$lib/data/store';
 
 import type { BooksDbStorageSource } from '$lib/data/database/books-db/versions/books-db';
 import StorageUnlock from '$lib/components/storage-unlock.svelte';
@@ -80,11 +85,14 @@ export function setStorageSourceDefault(name: string, type: StorageKey) {
     case StorageKey.FS:
       fsStorageSource$.next(name);
       break;
+    case StorageKey.WEBDAV:
+      webDavStorageSource$.next(name);
+      break;
     default:
       break;
   }
 
-  if (!name && type === StorageKey.FS) {
+  if (!name && (type === StorageKey.FS || type === StorageKey.WEBDAV)) {
     storageSource$.next(StorageKey.BROWSER);
   }
 }

@@ -13,6 +13,7 @@ import { FilesystemStorageHandler } from '$lib/data/storage/handler/filesystem-h
 import { GDriveStorageHandler } from '$lib/data/storage/handler/gdrive-handler';
 import { MergeMode } from '$lib/data/merge-mode';
 import { OneDriveStorageHandler } from '$lib/data/storage/handler/onedrive-handler';
+import { WebDavStorageHandler } from '$lib/data/storage/handler/webdav-handler';
 import { ReplicationSaveBehavior } from '$lib/functions/replication/replication-options';
 
 let backupStorageHandler: BackupStorageHandler;
@@ -20,6 +21,7 @@ let browserStorageHandler: BrowserStorageHandler;
 let gDriveStorageHandler: GDriveStorageHandler;
 let oneDriveStorageHandler: OneDriveStorageHandler;
 let fsStorageHandler: FilesystemStorageHandler;
+let webDavStorageHandler: WebDavStorageHandler;
 
 export function getStorageHandler(
   window: Window,
@@ -165,6 +167,20 @@ export function getStorageHandler(
       );
 
       return fsStorageHandler;
+    case StorageKey.WEBDAV:
+      webDavStorageHandler = webDavStorageHandler || new WebDavStorageHandler(window);
+      webDavStorageHandler.updateSettings(
+        window,
+        isForBrowser,
+        saveBehavior,
+        statisticsMergeMode,
+        readingGoalsMergeMode,
+        cacheStorageData,
+        askForStorageUnlock,
+        storageSourceName
+      );
+
+      return webDavStorageHandler;
     default:
       throw new Error(`No handler implementation for ${storageType}`);
   }

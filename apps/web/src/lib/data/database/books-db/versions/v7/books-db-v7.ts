@@ -80,6 +80,8 @@ interface BooksDbV7Annotation {
   createdAt: number;
   updatedAt: number;
   editedAt?: number;
+  /** set instead of removing the record so deletions sync to other devices */
+  deletedAt?: number;
 }
 
 interface BooksDbV7StorageSource {

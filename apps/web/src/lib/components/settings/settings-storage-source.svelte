@@ -7,6 +7,7 @@
   import { gDriveRevokeEndpoint } from '$lib/data/env';
   import { BaseStorageHandler } from '$lib/data/storage/handler/base-handler';
   import { getStorageHandler } from '$lib/data/storage/storage-handler-factory';
+  import { webDavCredentials } from '$lib/data/storage/handler/webdav-handler';
   import { StorageOAuthManager, storageOAuthTokens } from '$lib/data/storage/storage-oauth-manager';
   import {
     encrypt,
@@ -49,6 +50,15 @@
   let storageSourceType = configuredType || StorageKey.GDRIVE;
   let storageSourceClientId = configuredRemoteData?.clientId || '';
   let storageSourceClientSecret = configuredRemoteData?.clientSecret || '';
+  const webDavSecretSeparator = (configuredRemoteData?.clientSecret || '').indexOf(':');
+  let webDavUser =
+    configuredType === StorageKey.WEBDAV && webDavSecretSeparator > -1
+      ? storageSourceClientSecret.slice(0, webDavSecretSeparator)
+      : '';
+  let webDavPassword =
+    configuredType === StorageKey.WEBDAV && webDavSecretSeparator > -1
+      ? storageSourceClientSecret.slice(webDavSecretSeparator + 1)
+      : '';
   let directoryHandle: FileSystemDirectoryHandle | undefined = configuredFSData?.directoryHandle;
   let handleFsPath = configuredFSData?.fsPath || '';
   let storageSourceStoredInManager =
@@ -56,8 +66,13 @@
   let storageSourceEncryptionDisabled = configuredEncryptionDisabled || false;
   let storageSourceTypes = [
     { key: StorageKey.GDRIVE, label: 'GDrive' },
-    { key: StorageKey.ONEDRIVE, label: 'OneDrive' }
+    { key: StorageKey.ONEDRIVE, label: 'OneDrive' },
+    { key: StorageKey.WEBDAV, label: 'WebDAV (self-hosted)' }
   ];
+
+  $: if (storageSourceType === StorageKey.WEBDAV) {
+    storageSourceClientSecret = `${webDavUser}:${webDavPassword}`;
+  }
 
   $: if (browser && 'showDirectoryPicker' in window) {
     storageSourceTypes = [...storageSourceTypes, { key: StorageKey.FS, label: 'Filesystem' }];
@@ -209,6 +224,11 @@
         StorageOAuthManager.revokeToken(gDriveRevokeEndpoint, configuredRemoteData.refreshToken);
       }
 
+      if (credentialsChanged || storageSourceType === StorageKey.WEBDAV) {
+        webDavCredentials.delete(configuredName);
+        webDavCredentials.delete(storageSourceName);
+      }
+
       if (credentialsChanged) {
         storageOAuthTokens.delete(configuredName);
 
@@ -298,13 +318,39 @@
       </button>
       <div class="my-4 text-center">{handleFsPath || 'Nothing selected'}</div>
     {:else}
-      <input required type="text" placeholder="Client ID" bind:value={storageSourceClientId} />
-      <input
-        class="mt-4"
-        type="text"
-        placeholder="Client Secret"
-        bind:value={storageSourceClientSecret}
-      />
+      {#if storageSourceType === StorageKey.WEBDAV}
+        <input
+          required
+          type="url"
+          placeholder="Server URL (https://sync.example.com/dav/)"
+          bind:value={storageSourceClientId}
+        />
+        <input
+          class="mt-4"
+          type="text"
+          autocomplete="username"
+          placeholder="WebDAV Username"
+          bind:value={webDavUser}
+        />
+        <input
+          class="mt-4"
+          type="password"
+          autocomplete="off"
+          placeholder="WebDAV Password"
+          bind:value={webDavPassword}
+        />
+        <div class="mt-2 text-sm opacity-75">
+          The password fields below encrypt these credentials in this browser.
+        </div>
+      {:else}
+        <input required type="text" placeholder="Client ID" bind:value={storageSourceClientId} />
+        <input
+          class="mt-4"
+          type="text"
+          placeholder="Client Secret"
+          bind:value={storageSourceClientSecret}
+        />
+      {/if}
       <input
         class="mt-4"
         type="password"

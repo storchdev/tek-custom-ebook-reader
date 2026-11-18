@@ -28,7 +28,8 @@
     fsStorageSource$,
     gDriveStorageSource$,
     isOnline$,
-    oneDriveStorageSource$
+    oneDriveStorageSource$,
+    webDavStorageSource$
   } from '$lib/data/store';
   import { inputAllowDirectory } from '$lib/functions/file-dom/input-allow-directory';
   import { inputFile } from '$lib/functions/file-dom/input-file';
@@ -144,6 +145,15 @@
             {
               label: 'OneDrive',
               key: StorageKey.ONEDRIVE,
+              requiresConnectivity: true
+            }
+          ]
+        : []),
+      ...(isStorageSourceAvailable(StorageKey.WEBDAV, $webDavStorageSource$, window)
+        ? [
+            {
+              label: 'WebDAV',
+              key: StorageKey.WEBDAV,
               requiresConnectivity: true
             }
           ]

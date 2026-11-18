@@ -15,7 +15,8 @@
     gDriveStorageSource$,
     lastExportedTarget$,
     lastExportedTypes$,
-    oneDriveStorageSource$
+    oneDriveStorageSource$,
+    webDavStorageSource$
   } from '$lib/data/store';
   import { executeReplicate$ } from '$lib/functions/replication/replication-progress';
   import { createEventDispatcher } from 'svelte';
@@ -41,6 +42,15 @@
               ...getStorageIconData(StorageKey.ONEDRIVE),
               source: StorageKey.ONEDRIVE,
               label: 'OneDrive'
+            }
+          ]
+        : []),
+      ...(isStorageSourceAvailable(StorageKey.WEBDAV, $webDavStorageSource$, window)
+        ? [
+            {
+              ...getStorageIconData(StorageKey.WEBDAV),
+              source: StorageKey.WEBDAV,
+              label: 'WebDAV'
             }
           ]
         : []),

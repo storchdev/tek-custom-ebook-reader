@@ -44,7 +44,12 @@ export function dummyFn() {}
 export const isMobile$ = writableSubject<boolean>(false);
 
 export function isOnlineSourceAvailable(isOnline: boolean, storageKey: StorageKey) {
-  return isOnline || (storageKey !== StorageKey.GDRIVE && storageKey !== StorageKey.ONEDRIVE);
+  return (
+    isOnline ||
+    (storageKey !== StorageKey.GDRIVE &&
+      storageKey !== StorageKey.ONEDRIVE &&
+      storageKey !== StorageKey.WEBDAV)
+  );
 }
 
 export function caluclatePercentage(x: number, y: number) {

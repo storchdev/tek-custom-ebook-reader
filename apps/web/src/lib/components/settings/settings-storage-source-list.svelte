@@ -37,6 +37,7 @@
     gDriveStorageSource$,
     isOnline$,
     oneDriveStorageSource$,
+    webDavStorageSource$,
     syncTarget$
   } from '$lib/data/store';
   import { AutoReplicationType } from '$lib/functions/replication/replication-options';
@@ -75,6 +76,9 @@
         break;
       case StorageKey.FS:
         configuredIsSourceDefault = name === $fsStorageSource$;
+        break;
+      case StorageKey.WEBDAV:
+        configuredIsSourceDefault = name === $webDavStorageSource$;
         break;
       default:
         break;
@@ -257,7 +261,12 @@
           {@const storageSourceIsSourceDefault = isStorageSourceDefault(
             storageSource.name,
             storageSource.type,
-            [$gDriveStorageSource$, $oneDriveStorageSource$, $fsStorageSource$]
+            [
+              $gDriveStorageSource$,
+              $oneDriveStorageSource$,
+              $fsStorageSource$,
+              $webDavStorageSource$
+            ]
           )}
           <div class="rounded-lg border border-[color:var(--app-surface-border)] p-4">
             <div class="flex">

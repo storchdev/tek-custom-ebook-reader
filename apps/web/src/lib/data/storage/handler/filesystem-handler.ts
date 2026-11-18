@@ -593,7 +593,9 @@ export class FilesystemStorageHandler extends BaseStorageHandler {
       0.6
     );
 
-    this.addBookCard(this.currentContext.title, { annotationCount: annotationsToStore.length });
+    this.addBookCard(this.currentContext.title, {
+      annotationCount: BaseStorageHandler.countAnnotations(annotationsToStore)
+    });
   }
 
   async saveCover(data: Blob | undefined) {

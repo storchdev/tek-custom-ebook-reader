@@ -59,6 +59,10 @@ export function isStorageSourceAvailable(
       hasValidEnvironment = !!storageSourceManager && 'showDirectoryPicker' in window;
       break;
 
+    case StorageKey.WEBDAV:
+      hasValidEnvironment = !!storageSourceManager;
+      break;
+
     default:
       break;
   }
@@ -82,6 +86,11 @@ export function getStorageIconData(storageSource: StorageKey): StorageIcon {
       return {
         viewBox: '0 0 640 512',
         d: 'M96.2 200.1C96.07 197.4 96 194.7 96 192C96 103.6 167.6 32 256 32C315.3 32 367 64.25 394.7 112.2C409.9 101.1 428.3 96 448 96C501 96 544 138.1 544 192C544 204.2 541.7 215.8 537.6 226.6C596 238.4 640 290.1 640 352C640 422.7 582.7 480 512 480H144C64.47 480 0 415.5 0 336C0 273.2 40.17 219.8 96.2 200.1z'
+      };
+    case StorageKey.WEBDAV:
+      return {
+        viewBox: '0 0 512 512',
+        d: 'M64 32C28.7 32 0 60.7 0 96v64c0 35.3 28.7 64 64 64H448c35.3 0 64-28.7 64-64V96c0-35.3-28.7-64-64-64H64zm280 72a24 24 0 1 1 0 48 24 24 0 1 1 0-48zm48 24a24 24 0 1 1 48 0 24 24 0 1 1 -48 0zM64 288c-35.3 0-64 28.7-64 64v64c0 35.3 28.7 64 64 64H448c35.3 0 64-28.7 64-64V352c0-35.3-28.7-64-64-64H64zm280 72a24 24 0 1 1 0 48 24 24 0 1 1 0-48zm56 24a24 24 0 1 1 48 0 24 24 0 1 1 -48 0z'
       };
     case StorageKey.FS:
       return {
