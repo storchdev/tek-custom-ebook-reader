@@ -21,7 +21,9 @@ The app runs fully in the browser (can be used offline), can be installed as a P
 - Review statistics with date ranges, title filters, overview charts, summaries, heatmaps, aggregation modes, copy/export actions, and selective deletion.
 - Manage a local library with covers, progress, sorting, selection, deletion, import/export, external placeholders, and bug-report logs.
 - Import, export, and sync book data, bookmarks, annotations, statistics, reading goals, audiobook progress, and subtitles.
-- Store data in the browser, ZIP backups, Google Drive, OneDrive, or a browser-supported filesystem source.
+- Store data in the browser, ZIP backups, Google Drive, OneDrive, any WebDAV server, or a browser-supported filesystem source.
+- Sync between devices through your own server with the bundled lightweight sync server (see [Self-Hosted Sync Server](#self-hosted-sync-server)).
+- Highlight deletions sync too: deleted highlights stay deleted on every device instead of coming back on the next sync.
 - Configure automatic import/export up, down, or both ways with new-only or overwrite behavior.
 - Request persistent browser storage, use offline/installable PWA support, and optionally keep the screen awake while reading.
 
@@ -60,6 +62,7 @@ Available targets:
 - ZIP backup files for portable import/export.
 - Google Drive and OneDrive through OAuth.
 - Filesystem storage on browsers that support the File System Access API.
+- WebDAV (self-hosted): your own sync server, Nextcloud, `rclone serve webdav` or any other WebDAV server. Enter the server URL, username and password when adding the storage source.
 
 Exports can include:
 
@@ -71,11 +74,11 @@ Exports can include:
 - Audiobook playback positions for [ttu-whispersync](https://github.com/Renji-XD/ttu-whispersync)
 - Persisted subtitles from compatible audiobook workflows
 
-Automatic import/export can run when opening or reading books. `New Only` uses modification times, so keep device clocks reasonably aligned when syncing across devices.
+Automatic import/export can run when opening or reading books. Opening a book pulls its progress and highlights. Reading, highlighting, editing notes and deleting highlights push changes, batched about once a minute (tap the cloud icon in the reader footer to sync right away). `New Only` uses modification times, so keep device clocks reasonably aligned when syncing across devices.
 
 ## Security
 
-This app has no backend. External storage credentials and refresh tokens are stored locally in the browser. For custom Google Drive or OneDrive sources, the app can encrypt source data with a password that is not stored. Losing that password means the source cannot be recovered.
+The app itself has no backend; the optional sync server only stores files behind a username and password, so always run it behind HTTPS. External storage credentials and refresh tokens are stored locally in the browser. For custom Google Drive, OneDrive or WebDAV sources, the app can encrypt source data with a password that is not stored. Losing that password means the source cannot be recovered.
 
 The browser password manager option is convenient but shifts trust to the browser and any software that can trigger credential requests. The safest setup is to keep local encryption enabled and enter the password only when storage actions need it.
 
@@ -146,6 +149,23 @@ Alternatively you can also use:
 ```sh
 npx serve apps/web/build
 ```
+
+### Self-Hosted Sync Server
+
+`apps/sync-server` is a small Go server (one ~6 MB binary, a few MB of RAM) that serves a password-protected WebDAV share for syncing and, optionally, the reader itself on the same address. It fits on a cheap VPS.
+
+```sh
+git clone https://github.com/storchdev/tek-custom-ebook-reader.git
+cd tek-custom-ebook-reader
+corepack enable && pnpm install
+(cd apps/web && pnpm build)
+(cd apps/sync-server && CGO_ENABLED=0 go build -ldflags="-s -w" -o ttu-sync .)
+TTU_USER=me TTU_PASS=change-me apps/sync-server/ttu-sync -app apps/web/build -data ./sync-data
+```
+
+Then on each device: Settings → Data → Storage Sources → Add → **WebDAV (self-hosted)**, with server URL `https://your-server/dav/`, and tick **Is Sync Target** and **Is Source Default**. Set **Auto Import/Export** to `All`.
+
+See [apps/sync-server/README.md](apps/sync-server/README.md) for the full VPS setup (systemd, HTTPS with Caddy, updating, CORS).
 
 ## Environment
 
