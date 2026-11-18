@@ -526,9 +526,14 @@
 
   function createCharacterCountsByReference(knownSections: ReadonlyArray<Section>) {
     const characterCountsByReference = new Map<string, number>();
+    // A chapter's `characters` also includes the spine items grouped under it, so it only
+    // equals the chapter's own spine count when nothing is grouped under it.
+    const chaptersWithChildren = new Set(
+      knownSections.map((section) => section.parentChapter).filter(Boolean)
+    );
 
     knownSections.forEach((section) => {
-      if (typeof section.characters === 'number') {
+      if (typeof section.characters === 'number' && !chaptersWithChildren.has(section.reference)) {
         characterCountsByReference.set(section.reference, Math.max(0, section.characters));
       }
     });
