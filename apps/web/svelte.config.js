@@ -1,3 +1,4 @@
+/* global process */
 import adapter from '@sveltejs/adapter-static';
 import preprocess from 'svelte-preprocess';
 
@@ -18,7 +19,11 @@ const config = {
   kit: {
     adapter: adapter({
       fallback: '404.html'
-    })
+    }),
+    paths: {
+      // build with VITE_PAGE_PATH=/reader to host the reader under example.com/reader
+      base: process.env.VITE_PAGE_PATH || ''
+    }
   }
 };
 

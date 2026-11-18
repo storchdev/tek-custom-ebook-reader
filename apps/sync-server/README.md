@@ -33,7 +33,8 @@ own computer instead and copy the results over (for an ARM VPS add `GOARCH=arm64
 rsync -a apps/sync-server/ttu-sync apps/web/build you@your-vps:/opt/ttu-sync/
 ```
 
-To update later: `git pull`, rebuild, copy again, then `sudo systemctl restart ttu-sync`.
+To update later: `git pull`, rebuild (with the same `VITE_PAGE_PATH` if you use one), copy again,
+then `sudo systemctl restart ttu-sync`.
 
 ## Run on a VPS
 
@@ -56,13 +57,80 @@ Restart=on-failure
 WantedBy=multi-user.target
 ```
 
-HTTPS via Caddy (`/etc/caddy/Caddyfile`), which gets a certificate automatically:
+Then put it behind HTTPS with Caddy or nginx (below).
+
+### Caddy
+
+`/etc/caddy/Caddyfile` (Caddy gets a certificate automatically):
 
 ```
 reader.example.com {
 	reverse_proxy 127.0.0.1:8080
 }
 ```
+
+### nginx, on its own domain (`https://reader.example.com`)
+
+```nginx
+server {
+    listen 443 ssl;
+    http2 on;
+    server_name reader.example.com;
+    ssl_certificate     /etc/letsencrypt/live/reader.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/reader.example.com/privkey.pem;
+
+    client_max_body_size 500m;          # nginx refuses bodies over 1 MB by default; books are bigger
+
+    location / {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_set_header Host $http_host;   # required, see below
+        proxy_request_buffering off;
+        proxy_read_timeout 300s;
+        proxy_send_timeout 300s;
+    }
+}
+```
+
+### nginx, under a path (`https://example.com/reader/`)
+
+Build the reader for that path, and let nginx serve it directly. Then ttu-sync only does the
+WebDAV part, so drop `-app` and pass `-prefix /reader/dav/` in the systemd unit instead:
+
+```sh
+(cd apps/web && VITE_PAGE_PATH=/reader pnpm build)
+sudo mkdir -p /var/www/reader && sudo rsync -a --delete apps/web/build/ /var/www/reader/
+```
+
+```ini
+ExecStart=/opt/ttu-sync/ttu-sync -addr 127.0.0.1:8080 -data /var/lib/ttu-sync -prefix /reader/dav/
+```
+
+Add this to the existing `server { ... }` block for example.com:
+
+```nginx
+    client_max_body_size 500m;
+
+    location = /reader { return 301 /reader/; }
+
+    location /reader/dav/ {
+        proxy_pass http://127.0.0.1:8080;   # no trailing slash: keep the /reader/dav/ path
+        proxy_set_header Host $http_host;
+        proxy_request_buffering off;
+        proxy_read_timeout 300s;
+        proxy_send_timeout 300s;
+    }
+
+    location /reader/ {
+        root /var/www;
+        try_files $uri $uri.html $uri/ /reader/404.html;
+    }
+```
+
+In the reader the Server URL is then `https://example.com/reader/dav/`.
+
+Why `Host $http_host`: syncing renames files with WebDAV `MOVE`, and the server refuses a move
+whose destination host differs from the request's host (502 "invalid destination"). nginx sends
+`127.0.0.1:8080` by default; `$host` would drop a non-default port.
 
 Always put it behind HTTPS: the reader sends the WebDAV password with every request.
 

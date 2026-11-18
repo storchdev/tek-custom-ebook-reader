@@ -165,7 +165,7 @@ TTU_USER=me TTU_PASS=change-me apps/sync-server/ttu-sync -app apps/web/build -da
 
 Then on each device: Settings → Data → Storage Sources → Add → **WebDAV (self-hosted)**, with server URL `https://your-server/dav/`, and tick **Is Sync Target** and **Is Source Default**. Set **Auto Import/Export** to `All`.
 
-See [apps/sync-server/README.md](apps/sync-server/README.md) for the full VPS setup (systemd, HTTPS with Caddy, updating, CORS).
+See [apps/sync-server/README.md](apps/sync-server/README.md) for the full VPS setup (systemd, HTTPS with Caddy or nginx, hosting under a path like `/reader`, updating, CORS).
 
 ## Environment
 
