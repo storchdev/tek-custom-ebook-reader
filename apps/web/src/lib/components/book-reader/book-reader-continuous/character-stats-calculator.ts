@@ -169,11 +169,28 @@ export class CharacterStatsCalculator {
       }
 
       const { top, right, left } = getNodeBoundingRect(this.document, container);
+      const lineSize = this.getFirstLineSize(container);
 
-      bookmarkPos = this.axis === 'horizontal' ? { left: right } : { top, left };
+      // lineCenter: center of the paragraph's first line, so the marker can sit on the text
+      // rather than on the top edge of the (taller) line box
+      bookmarkPos =
+        this.axis === 'horizontal'
+          ? { left: right, lineCenter: lineSize ? right - lineSize / 2 : undefined }
+          : { top, left, lineCenter: lineSize ? top + lineSize / 2 : undefined };
     }
 
     return bookmarkPos;
+  }
+
+  private getFirstLineSize(container: Node) {
+    const element = container instanceof Element ? container : container.parentElement;
+    if (!element) return undefined;
+
+    const lineHeight = parseFloat(
+      this.document.defaultView?.getComputedStyle(element).lineHeight || ''
+    );
+
+    return Number.isFinite(lineHeight) && lineHeight > 0 ? lineHeight : undefined;
   }
 
   private get scrollPos() {

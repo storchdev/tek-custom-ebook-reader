@@ -208,6 +208,8 @@
 
   let bookmarkRightAdjustment: string | undefined;
 
+  let bookmarkTransform: string | undefined;
+
   let fontLoadAttempt = 0;
 
   let currentSectionId = '';
@@ -1048,11 +1050,15 @@
       if (!result.bookmarkPos) {
         setDefaultBookmarkPositions(dimentionAdjustment);
       } else if (verticalMode) {
+        const { lineCenter } = result.bookmarkPos;
         bookmarkTopAdjustment = dimentionAdjustment ? `${dimentionAdjustment}px` : '0.5rem';
-        bookmarkLeftAdjustment = `${result.bookmarkPos.left}px`;
+        bookmarkLeftAdjustment = `${lineCenter ?? result.bookmarkPos.left}px`;
         bookmarkRightAdjustment = undefined;
+        bookmarkTransform = lineCenter === undefined ? undefined : 'translateX(-50%)';
       } else {
-        bookmarkTopAdjustment = `${result.bookmarkPos.top}px`;
+        const { lineCenter } = result.bookmarkPos;
+        bookmarkTopAdjustment = `${lineCenter ?? result.bookmarkPos.top}px`;
+        bookmarkTransform = lineCenter === undefined ? undefined : 'translateY(-50%)';
         bookmarkRightAdjustment = undefined;
         bookmarkLeftAdjustment =
           result.bookmarkPos.left > 0
@@ -1281,6 +1287,7 @@
   }
 
   function setDefaultBookmarkPositions(dimensionAdjustment: number) {
+    bookmarkTransform = undefined;
     if (verticalMode) {
       bookmarkTopAdjustment = dimensionAdjustment ? `${dimensionAdjustment}px` : '0.5rem';
       bookmarkLeftAdjustment = $firstDimensionMargin$
@@ -1453,11 +1460,12 @@
 
 {#if isBookmarkScreen}
   <div
-    class="fixed h-3 w-3 text-base opacity-25 sm:text-xl"
+    class="fixed flex text-base opacity-25 sm:text-xl"
     style:color={fontColor}
     style:top={bookmarkTopAdjustment}
     style:left={bookmarkLeftAdjustment}
     style:right={bookmarkRightAdjustment}
+    style:transform={bookmarkTransform}
   >
     <Fa icon={faBookmark} />
   </div>
